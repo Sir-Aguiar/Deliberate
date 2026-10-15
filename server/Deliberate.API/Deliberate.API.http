@@ -1,0 +1,6 @@
+@Deliberate.API_HostAddress = http://localhost:5196
+
+GET {{Deliberate.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

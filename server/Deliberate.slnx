@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Deliberate.API/Deliberate.API.csproj" />
+  <Project Path="Deliberate.Domain/Deliberate.Domain.csproj" />
+</Solution>
