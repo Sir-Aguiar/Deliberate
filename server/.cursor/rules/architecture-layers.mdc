@@ -1,0 +1,39 @@
+---
+description: Arquitetura em camadas, projetos e direção de dependências
+globs: server/**/*.cs,server/**/*.csproj
+alwaysApply: false
+---
+
+# Arquitetura em camadas
+
+```
+Deliberate.API  →  Deliberate.Application  →  Deliberate.Domain
+        └────────→  Deliberate.Infrastructure ─┘ (implementa interfaces)
+```
+
+| Projeto                     | Responsabilidade                                                                                                                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Deliberate.Domain`         | Entidades, enums, value objects, regras puras (divisão, simplificação de dívidas, arredondamento). **Sem dependências** de outros projetos nem de pacotes de infraestrutura. |
+| `Deliberate.Application`    | Serviços de caso de uso, DTOs, validação, interfaces (`IExpenseRepository`, `IEmailSender`, `IPushSender`, `IClock`…), autorização por grupo, orquestração de transações.    |
+| `Deliberate.Infrastructure` | EF Core/PostgreSQL, repositórios, Identity/JWT, e-mail, push (FCM/APNs), storage, jobs em background.                                                                        |
+| `Deliberate.API`            | Endpoints HTTP, binding, filtros, DI (composition root). **Sem regra de negócio.**                                                                                           |
+
+Projetos `Application` e `Infrastructure` ainda precisam ser criados e adicionados a `Deliberate.slnx` quando necessários.
+
+## Regras
+
+- Dependências só apontam para dentro. `Domain` nunca referencia EF Core, ASP.NET ou serviços externos.
+- A API não acessa `DbContext` diretamente; usa serviços da `Application`.
+- Entidades do `Domain` não são retornadas pela API; use DTOs.
+- Sem MediatR/CQRS. Um serviço por área (`ExpenseService`, `GroupService`, `SettlementService`…), métodos explícitos.
+- Hora atual via `TimeProvider`/`IClock` injetado, nunca `DateTime.Now`/`UtcNow` direto na lógica.
+- Regra nova de negócio vai para o `Domain` primeiro; o serviço só orquestra.
+
+```csharp
+// ❌ BAD: regra de divisão no endpoint
+app.MapPost("/expenses", (ExpenseDto dto) => dto.Amount / dto.Participants.Count);
+
+// ✅ GOOD: endpoint delega; cálculo vive no Domain
+app.MapPost("/groups/{id}/expenses", (Guid id, CreateExpenseRequest req, IExpenseService svc, CancellationToken ct)
+    => svc.CreateAsync(id, req, ct));
+```

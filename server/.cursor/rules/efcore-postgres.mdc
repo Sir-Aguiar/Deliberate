@@ -1,0 +1,39 @@
+---
+description: Persistência com EF Core e PostgreSQL - mapeamento, migrations, soft delete, transações
+globs: server/Deliberate.Infrastructure/**/*.cs
+alwaysApply: false
+---
+
+# EF Core + PostgreSQL
+
+## Mapeamento
+- Configuração via `IEntityTypeConfiguration<T>` em classes separadas; **sem** data annotations nas entidades do Domain.
+- `snake_case` para tabelas/colunas (`UseSnakeCaseNamingConvention`), nomes de tabela conforme `ENTITIES.md`.
+- Dinheiro: `HasPrecision(18, 2)`. Datas: `DateTimeOffset` → `timestamptz` (sempre UTC); `DateOnly` → `date`.
+- Enums como string (`HasConversion<string>()`).
+- IDs `Guid` sem geração pelo banco nas entidades criadas pelo cliente; `activity_logs.Id` é `bigint identity`.
+- FKs com `DeleteBehavior.Restrict`; nunca cascade em dados financeiros.
+- Índices e únicos parciais conforme `ENTITIES.md` (ex.: convite pendente, `(RecurringExpenseId, RecurrenceOccurrenceDate)`).
+- Sem token de concorrência: **última escrita vence**.
+
+## Soft delete e auditoria
+- Filtro global `DeletedAt == null` em despesas e anexos; delta sync usa `IgnoreQueryFilters()` para devolver tombstones.
+- `activity_logs` e `balance_adjustments`: **somente insert**; nunca `Update`/`Remove`.
+- Toda escrita financeira + seu `ActivityLog` na **mesma transação** (`SaveChanges` único ou `BeginTransactionAsync`).
+
+## Consultas
+- Leitura sem alteração: `AsNoTracking()`; projete para DTO com `Select`, evite carregar grafos inteiros.
+- Evite N+1; use `Include` somente quando for modificar.
+- Nunca SQL concatenado; use parâmetros/`FromSql` interpolado.
+
+## Migrations
+- Uma migration por mudança lógica, nome descritivo (`AddInvites`). Nunca editar migration já aplicada.
+- Revisar o SQL gerado antes de commitar. Arquivos em `Deliberate.Infrastructure/Persistence/Migrations`.
+- PostgreSQL 15+ (permite `NULLS NOT DISTINCT` em `expense_shares`).
+
+```csharp
+// ❌ BAD
+db.ActivityLogs.Remove(log);
+// ✅ GOOD
+db.ActivityLogs.Add(ActivityLog.ExpenseUpdated(groupId, actorId, before, after));
+```

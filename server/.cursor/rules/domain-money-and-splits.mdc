@@ -1,0 +1,35 @@
+---
+description: Regras do Domain - dinheiro, divisão de despesas, simplificação de dívidas e saldos
+globs: server/Deliberate.Domain/**/*.cs
+alwaysApply: false
+---
+
+# Domain: dinheiro e cálculos
+
+## Dinheiro
+- Nunca `float`/`double`. Use `decimal` (ou value object `Money` encapsulando `decimal`, BRL).
+- Arredonde apenas em pontos definidos, com `MidpointRounding.ToEven`/regra explícita e 2 casas.
+- Soma exata: `Σ shares == Amount`, `Σ payers == Amount`, `Σ itens == Amount`. Se não fechar, lance exceção de domínio.
+- Centavos residuais: distribuir de forma **determinística** (maiores restos primeiro; desempate por `UserId` ordenado).
+
+```csharp
+// ❌ BAD
+var share = total / participants.Count;          // perde centavos
+
+// ✅ GOOD
+var shares = EqualSplit.Calculate(total, participantIds); // soma sempre == total
+```
+
+## Divisão
+Métodos: `Equal`, `Percentage` (soma 100), `Shares` (pesos > 0), `Exact` (soma == total), `ByItems` (itens com divisão própria; taxas/gorjeta/desconto rateados proporcionalmente ao consumo).
+
+## Saldo e simplificação
+- Saldo = pago − devido ± liquidações **confirmadas** ± `balance_adjustments`. Despesas com soft delete não contam.
+- Simplificação: calculadora **pura** (entrada: saldos; saída: transferências `devedor → credor`).
+- Invariantes obrigatórios: Σ saldos = 0; aplicar as transferências zera todos; valores > 0; ninguém é devedor e credor.
+
+## Estilo de entidades
+- Invariantes protegidas por construtores/métodos de domínio, setters `private`/`init`.
+- Exceções de domínio específicas (`DomainException` + subtipos), nunca strings soltas.
+- Nenhum `using Microsoft.EntityFrameworkCore`, `System.Net.Http` ou ASP.NET aqui.
+- Toda calculadora nova exige testes unitários (ver regra de testes).

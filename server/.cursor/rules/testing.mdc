@@ -1,0 +1,34 @@
+---
+description: Estratégia e convenções de testes automatizados
+globs: server/**/*Tests/**/*.cs
+alwaysApply: false
+---
+
+# Testes
+
+## Projetos
+- `Deliberate.Domain.Tests` (unitários, sem I/O), `Deliberate.Application.Tests`, `Deliberate.API.Tests` (integração com `WebApplicationFactory`).
+- xUnit. Banco de integração: PostgreSQL real via Testcontainers (não SQLite/InMemory, pois o comportamento difere).
+
+## Prioridade (núcleo de qualidade)
+1. Divisão de despesas: os 4 métodos + `ByItems`, centavos residuais, somas exatas.
+2. Simplificação de dívidas e saldo (incluindo liquidações e ajustes de saldo).
+3. Permissões (`Owner` x `Member` x não-membro), saída/remoção de membro.
+4. Idempotência de sync e de recorrência.
+
+## Convenções
+- Nome: `Metodo_Cenario_ResultadoEsperado` (ex.: `Split_ThreeWaysOf100_DistributesResidualCentDeterministically`).
+- Arrange/Act/Assert, um comportamento por teste; sem lógica condicional nos testes.
+- Tempo controlado com `FakeTimeProvider`; nunca depender do relógio real.
+- Dados de teste via builders; sem compartilhar estado entre testes.
+- Para as calculadoras, inclua **testes de propriedade** (ex.: FsCheck): soma das cotas == total; Σ saldos == 0; transferências zeram saldos.
+
+```csharp
+[Fact]
+public void Simplify_JoaoOwesMariaOwesPedro_ReturnsSingleTransfer()
+{
+    var balances = new Dictionary<Guid, decimal> { [joao] = -50m, [maria] = 0m, [pedro] = 50m };
+    var result = DebtSimplifier.Simplify(balances);
+    Assert.Equal([new Transfer(joao, pedro, 50m)], result);
+}
+```

@@ -1,0 +1,32 @@
+---
+description: Estilo de código C# e boas práticas gerais
+globs: server/**/*.cs
+alwaysApply: false
+---
+
+# Estilo C#
+
+- .NET 10, `Nullable` habilitado: sem `!` para silenciar; trate nulos explicitamente.
+- File-scoped namespaces; um tipo por arquivo; nome do arquivo = nome do tipo.
+- `record` para DTOs e value objects; `sealed` por padrão em classes concretas.
+- Async de ponta a ponta: sufixo `Async`, `CancellationToken` propagado, sem `.Result`/`.Wait()`.
+- Injeção por construtor (primary constructors permitidos); sem service locator.
+- Enums em vez de strings mágicas; constantes para códigos de erro.
+- Logging estruturado com `ILogger<T>` (`logger.LogInformation("Expense {ExpenseId} created", id)`); **nunca** logar senha, tokens, chave PIX ou e-mail completo.
+- Sem `catch` vazio; capture apenas o que sabe tratar e relance com contexto.
+- Segredos (connection string, JWT key, chaves FCM) em user-secrets/variáveis de ambiente, nunca no repositório.
+- Comentários só para o "porquê"; evite comentar o óbvio.
+- Mantenha métodos curtos; extraia regras para o Domain.
+
+```csharp
+// ❌ BAD
+catch (Exception) { }
+var total = (double)amount * 0.1;
+
+// ✅ GOOD
+catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+{
+    throw new DuplicateOperationException(operationId, ex);
+}
+var fee = Money.Round(amount * 0.1m);
+```

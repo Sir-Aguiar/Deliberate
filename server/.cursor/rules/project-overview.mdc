@@ -1,0 +1,30 @@
+---
+description: Visão geral do backend Deliberate, fontes de verdade e decisões já tomadas
+alwaysApply: true
+---
+
+# Deliberate — Backend (visão geral)
+
+Backend .NET 10 (ASP.NET Core) + PostgreSQL + EF Core para divisão de despesas entre amigos/moradores.
+
+## Fontes de verdade
+- Regras de negócio: `.cursor/CONTEXT.md`
+- Modelo de dados: `.cursor/ENTITIES.md`
+- Em caso de conflito ou ambiguidade, **pergunte** em vez de assumir; depois atualize esses documentos.
+
+## Decisões fixas (não reabrir sem pedido)
+- Apenas **BRL** por ora; câmbio e OCR/IA estão adiados (não implementar).
+- Login: e-mail + senha (telefone só como login alternativo); identidade verificada por e-mail.
+- Todo membro tem conta. Papéis: `Owner` (vários possíveis) e `Member`.
+- Só `Owner` edita/exclui despesa, confirma liquidação e gerencia membros; qualquer membro ativo lança despesa.
+- Offline: **última escrita vence**, pelo horário de chegada ao servidor.
+- Arquitetura em **camadas simples**, sem CQRS/MediatR.
+- Membro com saldo ≠ 0 não pode sair; se removido, o saldo é distribuído entre os demais (`balance_adjustments`).
+
+## Idioma
+- Código, nomes de tipos/membros, rotas e commits em **inglês**.
+- Documentação (`.cursor/*.md`) e textos voltados ao usuário final (notificações, e-mails, mensagens de erro) em **português do Brasil**.
+
+## Fluxo de trabalho
+- Mudou uma regra de negócio ou entidade? Atualize `CONTEXT.md`/`ENTITIES.md` na mesma tarefa.
+- Antes de concluir: `dotnet build` sem warnings novos e testes passando.

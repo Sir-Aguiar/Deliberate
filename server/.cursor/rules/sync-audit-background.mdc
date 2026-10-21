@@ -1,0 +1,32 @@
+---
+description: Sincronização offline, feed de atividades, convites, recorrência e lembretes em background
+globs: server/**/*.cs
+alwaysApply: false
+---
+
+# Sync offline, auditoria e jobs
+
+## Sincronização
+- Operações em lote; cada uma tem `OperationId` (GUID do cliente). Se já está em `processed_operations`, devolva o resultado anterior sem reexecutar.
+- Resultado **por operação** (`Accepted`/`Rejected` + `ErrorCode`); uma falha não derruba o lote.
+- Ordem/vencedor = **hora de chegada ao servidor** (`TimeProvider`). Horário do cliente é só informativo (`ClientCreatedAt`).
+- Delta sync por `UpdatedAt` (entidades) ou `ActivityLog.Id` (feed), incluindo registros com `DeletedAt`.
+- Permissões são revalidadas na sincronização (um não-dono não consegue editar só porque a operação estava na fila).
+
+## Feed de atividades
+- Todo evento financeiro/de membro gera `ActivityLog` com `BeforeJson`/`AfterJson` nas edições. Sem log, a operação é incompleta.
+- Append-only. Exclusões são soft delete.
+
+## Convites
+- Código curto + token de link; guardar **hash** do token. Validade padrão **3 dias**. Aceitar só se o usuário logado é o convidado. Invalidar após uso/revogação.
+- Notificar por e-mail e push; falha de notificação não impede a criação do convite.
+
+## Saída/remoção de membro
+- Sair com saldo ≠ 0: rejeitar. Remover com saldo ≠ 0: distribuir igualmente entre membros ativos via `balance_adjustments` (soma do lote = 0) + eventos `MemberRemoved`/`DebtDistributed`, em uma transação.
+- Nunca deixar o grupo sem `Owner` ativo.
+
+## Jobs em background (`BackgroundService`/agendador)
+- **Idempotentes**: recorrência usa o único `(RecurringExpenseId, RecurrenceOccurrenceDate)`; reexecutar não duplica.
+- Recorrência: semanal/mensal; mês curto → último dia. Mudanças valem só para ciclos futuros.
+- Lembretes: respeitar `GroupMember.RemindersMuted` e o intervalo mínimo via `reminder_logs`; parar ao quitar. Textos em pt-BR, tom amigável.
+- Jobs recebem `CancellationToken`, criam escopo de DI próprio e registram erros sem derrubar o host.

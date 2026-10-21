@@ -1,0 +1,38 @@
+---
+description: Convenções da API HTTP - rotas, DTOs, erros, autenticação e autorização
+globs: server/Deliberate.API/**/*.cs
+alwaysApply: false
+---
+
+# API HTTP
+
+## Rotas e contratos
+- Minimal APIs agrupadas por área em métodos de extensão (`MapExpenseEndpoints`), não tudo no `Program.cs`.
+- Rotas em inglês, plural, kebab-case, aninhadas pelo grupo: `/groups/{groupId}/expenses`.
+- Versionar sob `/api/v1`.
+- Requests/responses são **records** (DTOs) separados das entidades. Valores monetários como `decimal` em JSON; datas em ISO 8601 UTC.
+- Paginação por cursor nas listas e no feed.
+- Todo handler recebe `CancellationToken`.
+
+## Erros
+- Respostas de erro sempre em **ProblemDetails** (RFC 9457) com `code` estável e `title`/`detail` em pt-BR.
+- Mapeamento: validação → 400/422, não autenticado → 401, sem permissão → 403, não encontrado/fora do grupo → 404, violação de regra → 409/422.
+- Não vazar stack trace nem detalhes de banco.
+
+## Autenticação e autorização
+- JWT Bearer + refresh token; endpoints são `RequireAuthorization()` por padrão, exceto registro/login/verificação de e-mail.
+- Verificação de papel **no servidor**, a cada requisição: membro ativo para ler/lançar; `Owner` ativo para editar/excluir despesa, confirmar liquidação, gerir membros/convites.
+- Usuário de outro grupo recebe 404, não 403 (não revelar existência).
+- Nunca confie em `userId` vindo do corpo; use o do token.
+
+## Idempotência
+- Escritas criáveis offline aceitam **ID gerado pelo cliente**; reenvio com o mesmo ID não duplica (ver `processed_operations`).
+
+```csharp
+// ✅ GOOD
+group.MapPost("/", async (Guid groupId, CreateExpenseRequest req, IExpenseService svc, ClaimsPrincipal user, CancellationToken ct)
+    => Results.Created($"/api/v1/groups/{groupId}/expenses/{req.Id}", await svc.CreateAsync(groupId, user.GetUserId(), req, ct)));
+```
+
+## OpenAPI
+- Documente respostas (`Produces`, `ProducesProblem`) em cada endpoint. Remover o template `/weatherforecast`.

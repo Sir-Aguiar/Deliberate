@@ -1,0 +1,38 @@
+---
+description: Quando e como rodar /review-bugbot e /review-security no backend Deliberate, com instruções customizadas
+alwaysApply: false
+---
+
+# Revisão de código
+
+As skills nativas `/review-bugbot` e `/review-security` já existem; esta regra define **quando** usá-las e o que passar em `Custom Instructions`. Só rode quando o usuário pedir ou ao concluir uma das áreas abaixo (nesse caso, **sugira** a revisão, não rode sozinho). Não corrija achados sem pedido.
+
+## Quando sugerir
+
+| Revisão | Sugerir ao concluir |
+|---|---|
+| `/review-security` | Autenticação/JWT/refresh token, verificação de e-mail, convites (código/link), permissões de dono/membro, upload de anexos, geração de PIX, qualquer endpoint novo |
+| `/review-bugbot` | Divisão de despesas, simplificação de dívidas, saldos, `balance_adjustments`, sync offline, recorrência, migrations, antes de abrir PR |
+
+## Custom Instructions: `/review-bugbot`
+
+```text
+Backend .NET 10 + EF Core + PostgreSQL. Priorize:
+- Dinheiro: uso de float/double, arredondamento, soma de cotas/pagadores/itens diferente do total, centavos residuais não determinísticos.
+- Saldos e simplificação de dívidas: Σ saldos != 0, transferências que não zeram saldos, despesas com soft delete contadas, liquidações não confirmadas contadas.
+- Sync offline: operação sem idempotência (OperationId), vencedor decidido pelo relógio do cliente, perda de tombstones.
+- Escrita financeira sem ActivityLog ou fora da mesma transação; update/delete em activity_logs ou balance_adjustments.
+- Jobs: recorrência/lembretes que possam duplicar execução.
+- Domain referenciando EF Core/ASP.NET; regra de negócio em endpoint.
+```
+
+## Custom Instructions: `/review-security`
+
+```text
+Backend .NET 10 com JWT. Priorize:
+- Autorização: checagem de papel (Owner/Member) e de pertencimento ao grupo em TODO endpoint e na sincronização; IDOR (acesso a recurso de outro grupo); userId vindo do corpo em vez do token.
+- Convites: código/token previsível, token guardado em claro (deve ser hash), aceite por usuário diferente do convidado, ausência de expiração (3 dias) ou de invalidação após uso.
+- Autenticação: hash de senha, enumeração de usuário/e-mail/telefone, refresh token sem revogação, tokens de verificação reutilizáveis.
+- Vazamento de dados: logs com senha/token/chave PIX/e-mail, stack trace em respostas, DTO expondo campos internos.
+- Injeção (SQL bruto), upload de arquivo (tipo/tamanho/path), segredos no repositório.
+```
